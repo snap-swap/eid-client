@@ -1,7 +1,6 @@
 package com.snapswap.eid
 
 import com.snapswap.eid.domain.{EidDocument, EidRequestParams, EidVideoVerificationResult}
-import com.snapswap.eid.errors.InternalEidError
 import com.snapswap.eid.utils.json.extractor.SimpleJsonExtractor
 import spray.json._
 
@@ -20,7 +19,7 @@ object VideoInfoParser extends SimpleJsonExtractor with DefaultJsonProtocol {
   private def doParse(json: JsValue): EidVideoVerificationResult = {
     val requestParams = EidRequestParams(
       requestedAt = (json -> "request" -> "date").to[Long],
-      minSimilarityLevel = (json -> "request" -> "minSimilarityLevel").to[String]
+      minSimilarityLevel = ((json -> "request") ~> "minSimilarityLevel").to[String]
     )
 
     val doc = json -> "document"
@@ -29,23 +28,24 @@ object VideoInfoParser extends SimpleJsonExtractor with DefaultJsonProtocol {
     val idDocument = EidDocument.apply(
       docType = (doc -> "type").to[String],
       issuer = (doc -> "issuer").to[String],
-      expiresAt = (doc -> "expiryDate").to[String],
+      expiresAt = (doc ~> "expiryDate").to[String],
       primaryName = (subj -> "primaryName").to[String],
       secondaryName = (subj -> "secondaryName").to[String],
       birthDate = (subj -> "birthDate").to[String],
       sex = (subj ~> "sex").to[String],
       nationality = (subj ~> "nationality").to[String],
       personalNumber = (subj ~> "personalNumber").to[String],
-      documentNumber = (doc -> "documentNumber").to[String]
+      documentNumber = (doc ~> "documentNumber").to[String],
+      passportNumber = (doc ~> "passportNumber").to[String]
     )
 
     EidVideoVerificationResult(
       id = (json -> "id").to[String],
       process = (json -> "process").to[String],
       status = (json -> "status").to[String],
-      tenantId = (json -> "tenantId").to[String],
+      tenantId = (json ~> "tenantId").to[String],
       request = requestParams,
-      completedAt = (json -> "completion" -> "date").to[Long],
+      completedAt = (json ~> "completion" ~> "date").to[Long],
       document = idDocument,
       faceSimilarityLevel = (json -> "biometrics" -> "face" -> "similarityLevel").to[String]
     )

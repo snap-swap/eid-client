@@ -1,13 +1,13 @@
 package com.snapswap.eid
 
 import akka.actor.ActorSystem
+import akka.event.LoggingAdapter
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding._
-import akka.http.scaladsl.model.headers.{Accept, Authorization, OAuth2BearerToken, `Content-Type`}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.ContentNegotiator.Alternative.MediaType
+import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken, `Content-Type`}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.ActorMaterializer
+import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.snapswap.eid.domain.EidVideoVerificationResult
 import com.snapswap.eid.errors._
@@ -24,22 +24,23 @@ trait EidRetrievalClient {
 }
 
 class EidRetrievalAkkaHttpClient(token: String,
-                                 baseUrl: String = "etrust-sandbox.electronicid.eu")
+                                 apiHost: String,
+                                 log: LoggingAdapter)
                                 (implicit system: ActorSystem,
                                  ctx: ExecutionContext,
-                                 materializer: ActorMaterializer) extends EidRetrievalClient {
+                                 materializer: Materializer) extends EidRetrievalClient {
 
+  private val connection = Http().cachedHostConnectionPoolHttps[Unit](apiHost)
 
-  private val connection = Http().cachedHostConnectionPoolHttps[Unit](baseUrl)
-
-  private def obtainVideoInfoRequest(videoId: VideoId): HttpRequest =
+  private def videoInfoRequest(videoId: VideoId): HttpRequest =
     Get(s"/v2/videoid/$videoId").withHeaders(
       Authorization(OAuth2BearerToken(token)),
       `Content-Type`(ContentTypes.`application/json`)
     )
 
-  private def send(request: HttpRequest): Future[HttpResponse] =
-    Source.single(request -> ())
+  private def send(request: HttpRequest): Future[HttpResponse] = {
+    log.debug(s"Sending request $request")
+    Source.single(request -> (()))
       .via(connection)
       .runWith(Sink.head)
       .map {
@@ -48,6 +49,7 @@ class EidRetrievalAkkaHttpClient(token: String,
         case (Failure(ex), _) =>
           throw ex
       }
+  }
 
   private def unmarshallToJson(response: HttpResponse): Future[JsValue] =
     if (response.status == StatusCodes.OK) {
@@ -63,15 +65,19 @@ class EidRetrievalAkkaHttpClient(token: String,
 
 
   override def obtainVideoInfo(videoId: VideoId): Future[EidVideoVerificationResult] = (for {
-    response <- send(obtainVideoInfoRequest(videoId)).recoverWith {
+    _ <- Future(log.info(s"Retrieving video info vor videoId $videoId"))
+    response <- send(videoInfoRequest(videoId)).recoverWith {
       case NonFatal(ex) =>
         Future.failed(EidHttpRequestError(exceptionDetails(ex)))
     }
     json <- unmarshallToJson(response)
+    _ = log.debug(s"Video $videoId successfully unmarshalled into json:\n\n${json.prettyPrint}\n\n")
   } yield VideoInfoParser.parse(json)).recoverWith {
     case ex: EidException =>
+      log.error(s"Handled exception during retrieving video info vor videoId $videoId was caught ${exceptionDetails(ex)}")
       Future.failed(ex)
     case NonFatal(ex) =>
+      log.error(s"Unhandled exception during retrieving video info vor videoId $videoId was caught ${exceptionDetails(ex)}")
       Future.failed(EidMalformedResponse(exceptionDetails(ex)))
   }
 

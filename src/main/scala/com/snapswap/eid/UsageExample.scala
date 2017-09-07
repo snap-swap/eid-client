@@ -13,11 +13,18 @@ object UsageExample extends App {
   implicit val ctx = system.dispatcher
   implicit val mat = ActorMaterializer()
 
-  val client = new EidRetrievalAkkaHttpClient("")
+  val client = new EidRetrievalAkkaHttpClient(
+    token = "",
+    "etrust-sandbox.electronicid.eu",
+    system.log
+  )
 
-  val result = Await.result(client.obtainVideoInfo(""), Duration.Inf)
+  val videoId = ""
 
-  println(result)
-
-
+  try {
+    val result = Await.result(client.obtainVideoInfo(videoId), Duration.Inf)
+    println(s"\n\n$result\n\n")
+  } finally {
+    system.terminate()
+  }
 }

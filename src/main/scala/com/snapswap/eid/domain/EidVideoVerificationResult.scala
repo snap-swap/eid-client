@@ -1,50 +1,88 @@
 package com.snapswap.eid.domain
 
-import java.time.LocalDateTime
+import java.time.{Clock, LocalDateTime}
 
 import com.snapswap.eid.utils.datetime._
 
+
+object EidProcessEnum extends Enumeration {
+  type Process = Value
+
+  val Unattended, Attended = Value
+}
+
+object EidSimilarityLevelEnum extends Enumeration {
+  type Similarity = Value
+
+  val Low, High, Medium, VeryLow = Value
+}
+
+object EidDocTypeEnum extends Enumeration {
+  type DocType = Value
+
+  val TD1, TD2, TD3 = Value
+}
+
+object EidSexEnum extends Enumeration {
+  type Sex = Value
+
+  val M, F = Value
+}
+
 case class EidVideoVerificationResult(id: String,
-                                      process: String,
-                                      status: String,
-                                      tenantId: String,
+                                      process: EidProcessEnum.Process,
+                                      status: String, //TODO: use enum
+                                      tenantId: Option[String],
                                       request: EidRequestParams,
-                                      completedAt: LocalDateTime,
+                                      completedAt: Option[LocalDateTime],
                                       document: EidDocument,
-                                      faceSimilarityLevel: String)
+                                      faceSimilarityLevel: EidSimilarityLevelEnum.Similarity)
 
 object EidVideoVerificationResult {
   def apply(id: String,
             process: String,
             status: String,
-            tenantId: String,
+            tenantId: Option[String],
             request: EidRequestParams,
-            completedAt: Long,
+            completedAt: Option[Long],
             document: EidDocument,
             faceSimilarityLevel: String): EidVideoVerificationResult =
     new EidVideoVerificationResult(
-      id, process, status, tenantId, request,
-      fromMillis(completedAt),
-      document, faceSimilarityLevel)
+      id, EidProcessEnum.withName(process), status, tenantId, request,
+      completedAt.map(fromMillis),
+      document, EidSimilarityLevelEnum.withName(faceSimilarityLevel))
 }
 
-case class EidRequestParams(requestedAt: LocalDateTime, minSimilarityLevel: String)
+case class EidRequestParams(requestedAt: LocalDateTime,
+                            minSimilarityLevel: Option[EidSimilarityLevelEnum.Similarity])
 
 object EidRequestParams {
-  def apply(requestedAt: Long, minSimilarityLevel: String): EidRequestParams =
-    new EidRequestParams(fromMillis(requestedAt), minSimilarityLevel)
+  def apply(requestedAt: Long, minSimilarityLevel: Option[String]): EidRequestParams =
+    new EidRequestParams(fromMillis(requestedAt), minSimilarityLevel.map(EidSimilarityLevelEnum.withName))
 }
 
-case class EidDocument(docType: String,
+case class EidDocument(docType: EidDocTypeEnum.DocType,
                        issuer: String,
-                       expiresAt: LocalDateTime,
+                       expiresAt: Option[LocalDateTime],
                        primaryName: String,
                        secondaryName: String,
                        birthDate: LocalDateTime,
-                       sex: Option[String],
+                       sex: Option[EidSexEnum.Sex],
                        nationality: Option[String],
                        personalNumber: Option[String],
-                       documentNumber: String)
+                       documentNumber: String) {
+  require(issuer == issuer.toUpperCase && issuer.length == 3, "'issuer' must be a 3-letter upper-cased valid country code")
+  require(
+    nationality.forall(n => n == n.toUpperCase && n.length == 3),
+    "if 'nationality' exists, it must be a 3-letter upper-cased valid country code"
+  )
+  require(expiresAt.forall(exp => exp.compareTo(birthDate) > 0), "'birthDate' should be less than 'expiresAt'")
+  require(!primaryName.trim.isEmpty, "'primaryName' can't be empty")
+  require(!secondaryName.trim.isEmpty, "'secondaryName' can't be empty")
+  require(personalNumber.forall(!_.trim.isEmpty), "if 'personalNumber' exists, it can't be empty")
+  require(!documentNumber.trim.isEmpty, "'documentNumber' can't be empty")
+
+}
 
 object EidDocument {
   private type BirthDate = String
@@ -65,24 +103,45 @@ object EidDocument {
     }
   }
 
+  private def dtResolver(birth: BirthDate, exp: Option[ExpiringDate]): (BirthDate, Option[ExpiringDate]) = exp match {
+    case Some(e) =>
+      val (resolvedBirth, resolvedExp) = dtResolver(birth, e)
+      resolvedBirth -> Some(resolvedExp)
+    case None =>
+      val birth2k = s"20$birth"
+      val currentYear = LocalDateTime.now(Clock.systemUTC()).getYear
+      if (birth2k.take(4).toInt < currentYear)
+        birth2k -> exp
+      else
+        s"19$birth" -> exp
+  }
+
 
   def apply(docType: String,
             issuer: String,
-            expiresAt: String,
+            expiresAt: Option[String],
             primaryName: String,
             secondaryName: String,
             birthDate: String,
             sex: Option[String],
             nationality: Option[String],
             personalNumber: Option[String],
-            documentNumber: String): EidDocument = {
-    val (birthDate_, expiresAt_) = dtResolver(birthDate, expiresAt)
+            documentNumber: Option[String],
+            passportNumber: Option[String]): EidDocument = {
+    val persNum = personalNumber.flatMap{
+      case pn if pn.trim.isEmpty =>
+        None
+      case pn =>
+        Some(pn)
+    }
+    val (birthDateResolved, expiresAtResolved) = dtResolver(birthDate, expiresAt)
     new EidDocument(
-      docType, issuer,
-      fromYYYYMMDD(expiresAt_),
+      EidDocTypeEnum.withName(docType), issuer,
+      expiresAtResolved.map(fromYYYYMMDD),
       primaryName, secondaryName,
-      fromYYYYMMDD(birthDate_),
-      sex, nationality, personalNumber, documentNumber
+      fromYYYYMMDD(birthDateResolved),
+      sex.map(EidSexEnum.withName), nationality, persNum,
+      documentNumber.orElse(passportNumber).orElse(persNum).getOrElse("")
     )
   }
 }

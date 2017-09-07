@@ -1,19 +1,37 @@
+enablePlugins(JavaAppPackaging)
+
 name := "eid-client"
 
-version := "0.1"
+version := "0.0.1"
+
+organization := "com.snapswap"
 
 scalaVersion := "2.11.8"
 
-libraryDependencies ++= {
-  val akkaV = "2.4.18"
-  val akkaHttpV = "10.0.7"
+scalacOptions := Seq(
+  "-feature",
+  "-unchecked",
+  "-deprecation",
+  "-language:existentials",
+  "-language:higherKinds",
+  "-language:implicitConversions",
+  "-Xfatal-warnings",
+  "-Xlint",
+  "-Yno-adapted-args",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Xfuture",
+  "-Ywarn-unused-import",
+  "-encoding",
+  "UTF-8")
 
+libraryDependencies ++= {
+  val akkaHttpV = "10.0.7"
   Seq(
-    "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV,
-    "ch.qos.logback" % "logback-classic" % "1.1.7",
-    "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % "test",
-    "org.scalamock" %% "scalamock-scalatest-support" % "3.5.0" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.1" % Test,
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % Test
   )
 }
+
+assemblyJarName in assembly := "eid-client.jar"
