@@ -36,7 +36,8 @@ case class EidVideoVerificationResult(id: String,
                                       request: EidRequestParams,
                                       completedAt: Option[LocalDateTime],
                                       document: EidDocument,
-                                      faceSimilarityLevel: EidSimilarityLevelEnum.Similarity)
+                                      faceSimilarityLevel: EidSimilarityLevelEnum.Similarity,
+                                      face: EidImage)
 
 object EidVideoVerificationResult {
   def apply(id: String,
@@ -46,11 +47,14 @@ object EidVideoVerificationResult {
             request: EidRequestParams,
             completedAt: Option[Long],
             document: EidDocument,
-            faceSimilarityLevel: String): EidVideoVerificationResult =
+            faceSimilarityLevel: String,
+            faceBase64: String): EidVideoVerificationResult =
     new EidVideoVerificationResult(
       id, EidProcessEnum.withName(process), status, tenantId, request,
       completedAt.map(fromMillis),
-      document, EidSimilarityLevelEnum.withName(faceSimilarityLevel))
+      document, EidSimilarityLevelEnum.withName(faceSimilarityLevel),
+      EidImage.face(faceBase64)
+    )
 }
 
 case class EidRequestParams(requestedAt: LocalDateTime,
@@ -70,7 +74,9 @@ case class EidDocument(docType: EidDocTypeEnum.DocType,
                        sex: Option[EidSexEnum.Sex],
                        nationality: Option[String],
                        personalNumber: Option[String],
-                       documentNumber: String) {
+                       documentNumber: String,
+                       front: EidImage,
+                       back: EidImage) {
   require(issuer == issuer.toUpperCase && issuer.length == 3, "'issuer' must be a 3-letter upper-cased valid country code")
   require(
     nationality.forall(n => n == n.toUpperCase && n.length == 3),
@@ -127,8 +133,10 @@ object EidDocument {
             nationality: Option[String],
             personalNumber: Option[String],
             documentNumber: Option[String],
-            passportNumber: Option[String]): EidDocument = {
-    val persNum = personalNumber.flatMap{
+            passportNumber: Option[String],
+            frontBase64: String,
+            backBase64: String): EidDocument = {
+    val persNum = personalNumber.flatMap {
       case pn if pn.trim.isEmpty =>
         None
       case pn =>
@@ -141,7 +149,8 @@ object EidDocument {
       primaryName, secondaryName,
       fromYYYYMMDD(birthDateResolved),
       sex.map(EidSexEnum.withName), nationality, persNum,
-      documentNumber.orElse(passportNumber).orElse(persNum).getOrElse("")
+      documentNumber.orElse(passportNumber).orElse(persNum).getOrElse(""),
+      EidImage.front(frontBase64), EidImage.back(backBase64)
     )
   }
 }

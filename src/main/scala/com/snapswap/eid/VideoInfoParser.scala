@@ -36,7 +36,9 @@ object VideoInfoParser extends SimpleJsonExtractor with DefaultJsonProtocol {
       nationality = (subj ~> "nationality").to[String],
       personalNumber = (subj ~> "personalNumber").to[String],
       documentNumber = (doc ~> "documentNumber").to[String],
-      passportNumber = (doc ~> "passportNumber").to[String]
+      passportNumber = (doc ~> "passportNumber").to[String],
+      frontBase64 = (doc -> "front").to[String],
+      backBase64 = (doc -> "back").to[String]
     )
 
     EidVideoVerificationResult(
@@ -47,7 +49,8 @@ object VideoInfoParser extends SimpleJsonExtractor with DefaultJsonProtocol {
       request = requestParams,
       completedAt = (json ~> "completion" ~> "date").to[Long],
       document = idDocument,
-      faceSimilarityLevel = (json -> "biometrics" -> "face" -> "similarityLevel").to[String]
+      faceSimilarityLevel = (json -> "biometrics" -> "face" -> "similarityLevel").to[String],
+      faceBase64 = (json -> "biometrics" -> "face" -> "image").to[String]
     )
   }
 }
