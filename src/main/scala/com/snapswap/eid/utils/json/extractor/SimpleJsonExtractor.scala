@@ -68,6 +68,9 @@ trait SimpleJsonExtractor {
 
     def to[T: ClassTag](implicit formatter: JsonReader[T]): Option[T] =
       json.map { j => j.to[T] }
+
+    def toNonEmpty[T: ClassTag](implicit formatter: JsonReader[T]): Option[T] =
+      to[T].flatMap { v => if (v.toString.nonEmpty) Some(v) else None }
   }
 
   implicit class JsValueLifter(json: JsValue) {

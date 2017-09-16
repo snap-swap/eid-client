@@ -76,7 +76,7 @@ case class EidDocument(docType: EidDocTypeEnum.DocType,
                        personalNumber: Option[String],
                        documentNumber: String,
                        front: EidImage,
-                       back: EidImage) {
+                       back: Option[EidImage]) {
   require(issuer == issuer.toUpperCase && issuer.length == 3, "'issuer' must be a 3-letter upper-cased valid country code")
   require(
     nationality.forall(n => n == n.toUpperCase && n.length == 3),
@@ -135,7 +135,7 @@ object EidDocument {
             documentNumber: Option[String],
             passportNumber: Option[String],
             frontBase64: String,
-            backBase64: String): EidDocument = {
+            backBase64: Option[String]): EidDocument = {
     val persNum = personalNumber.flatMap {
       case pn if pn.trim.isEmpty =>
         None
@@ -150,7 +150,7 @@ object EidDocument {
       fromYYYYMMDD(birthDateResolved),
       sex.map(EidSexEnum.withName), nationality, persNum,
       documentNumber.orElse(passportNumber).orElse(persNum).getOrElse(""),
-      EidImage.front(frontBase64), EidImage.back(backBase64)
+      EidImage.front(frontBase64), backBase64.map(EidImage.back)
     )
   }
 }

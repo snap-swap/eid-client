@@ -2,7 +2,7 @@ enablePlugins(JavaAppPackaging)
 
 name := "eid-client"
 
-version := "0.0.2"
+version := "0.0.3"
 
 organization := "com.snapswap"
 
